@@ -1,5 +1,6 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import classNames from "classnames";
+import { Engine } from "json-rules-engine"; // Import the json-rules-engine
 import type { DraggableSyntheticListeners } from "@dnd-kit/core";
 import type { Transform } from "@dnd-kit/utilities";
 
@@ -66,6 +67,11 @@ export const Item = React.memo(
       },
       ref
     ) => {
+      const [isVisible, setIsVisible] = useState(true);
+      const [isValid, setIsValid] = useState(false);
+      const [relatedService, setRelatedService] = useState(false);
+      const [inputValue, setInputValue] = useState(value);
+
       useEffect(() => {
         if (!dragOverlay) {
           return;
@@ -77,6 +83,89 @@ export const Item = React.memo(
           document.body.style.cursor = "";
         };
       }, [dragOverlay]);
+
+      // Initialize the engine
+      const engine = new Engine();
+
+      // Define rules
+      const rules = [
+        {
+          conditions: {
+            all: [
+              {
+                fact: "isVisible",
+                operator: "equal",
+                value: true,
+              },
+              {
+                fact: "isValid",
+                operator: "equal",
+                value: true,
+              },
+              {
+                fact: "inputValue",
+                operator: "notEqual",
+                value: "", // Validate that inputValue is not empty
+              },
+            ],
+          },
+          event: {
+            type: "input-valid",
+            params: {
+              message: "Input is valid",
+            },
+          },
+        },
+        {
+          conditions: {
+            any: [
+              {
+                fact: "isVisible",
+                operator: "equal",
+                value: false,
+              },
+              {
+                fact: "isValid",
+                operator: "equal",
+                value: false,
+              },
+              {
+                fact: "inputValue",
+                operator: "equal",
+                value: "",
+              },
+            ],
+          },
+          event: {
+            type: "input-invalid",
+            params: {
+              message: "Input is invalid",
+            },
+          },
+        },
+      ];
+
+      // Add rules to the engine
+      engine.addRule(rules);
+
+      // Evaluate the rules
+      const evaluateRules = () => {
+        const facts = {
+          isVisible,
+          isValid,
+          inputValue,
+        };
+
+        engine.run(facts).then((results) => {
+          results.events.forEach((event) => {
+            console.log(event.params!.message); // Handle the event message as needed
+          });
+        });
+      };
+
+      useEffect(() => {
+        evaluateRules(); // Evaluate rules whenever dependencies change
+      }, [isVisible, isValid, inputValue]);
 
       return renderItem ? (
         renderItem({
@@ -90,7 +179,7 @@ export const Item = React.memo(
           style,
           transform,
           transition,
-          value
+          value,
         })
       ) : (
         <li
@@ -119,7 +208,7 @@ export const Item = React.memo(
                 ? `${transform.scaleY}`
                 : undefined,
               "--index": index,
-              "--color": color
+              "--color": color,
             } as React.CSSProperties
           }
           ref={ref}
@@ -139,7 +228,43 @@ export const Item = React.memo(
             {...props}
             tabIndex={!handle ? 0 : undefined}
           >
-            {value}
+            <label>Field {value}</label>
+            {isVisible && (
+              <input
+                type="text"
+                className={styles.Input}
+                onChange={(e) => setInputValue(e.target.value)} // Update input value
+                disabled={disabled}
+                {...(!handle ? listeners : undefined)}
+                {...props}
+              />
+            )}
+            <div className={styles.CheckboxContainer}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={isVisible}
+                  onChange={() => setIsVisible((prev) => !prev)}
+                />
+                Visible
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={isValid}
+                  onChange={() => setIsValid((prev) => !prev)}
+                />
+                Validate Input
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={relatedService}
+                  onChange={() => setRelatedService((prev) => !prev)}
+                />
+                Related Service
+              </label>
+            </div>
             <span className={styles.Actions}>
               {onRemove ? (
                 <Remove className={styles.Remove} onClick={onRemove} />
